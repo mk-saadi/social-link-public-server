@@ -54,7 +54,7 @@ async function run() {
 
 		// >> users
 		app.post("/users", async (req, res) => {
-			const { name, email, password } = req.body;
+			const { name, image, email, password } = req.body; // remember to put "image" in the value
 
 			const existingUser = await usersCollection.findOne({
 				email: email,
@@ -72,7 +72,7 @@ async function run() {
 						.send({ message: "Password hashing error" });
 				}
 
-				const newUser = { name, email, password: hash };
+				const newUser = { name, image, email, password: hash };
 
 				const result = await usersCollection.insertOne(newUser);
 				res.send(result);
@@ -116,7 +116,6 @@ async function run() {
 		// >> post apis
 		app.post("/posts", async (req, res) => {
 			const post = req.body;
-			console.log(post);
 			const result = await postsCollection.insertOne(post);
 			res.send(result);
 		});
@@ -124,6 +123,51 @@ async function run() {
 		app.get("/posts", async (req, res) => {
 			const result = await postsCollection.find().toArray();
 			res.send(result);
+		});
+
+		// app.patch("/posts/like/:id", async (req, res) => {
+		// 	// Increment the like count for a specific post
+		// 	const postId = req.params.id;
+		// 	const result = await postsCollection.updateOne(
+		// 		{ _id: new ObjectId(postId) },
+		// 		{ $inc: { likes: 1 } }
+		// 	);
+		// 	res.send(result);
+		// });
+
+		app.patch("/posts/like/:postId", async (req, res) => {
+			try {
+				const postId = req.params.postId;
+				const userName = req.body.user.name; // Extract the user's displayName from the request body
+
+				// Check if the user's displayName is already included in the likedBy array
+				const found = await postsCollection.findOne({
+					_id: new ObjectId(postId),
+					likedBy: { $in: [userName] },
+				});
+
+				if (!found) {
+					// The user has not liked the post before, so increment the likes count and push the user's displayName to the likedBy array
+					const result = await postsCollection.updateOne(
+						{ _id: new ObjectId(postId) },
+						{
+							$inc: { likes: 1 },
+							$push: { likedBy: userName },
+						}
+					);
+					res.send(result);
+				} else {
+					// The user has already liked the post, so do nothing
+					res.status(400).json({
+						message: "You have already liked this post",
+					});
+				}
+			} catch (error) {
+				console.error("Error incrementing likes:", error);
+				res.status(500).json({
+					message: "Internal server error",
+				});
+			}
 		});
 
 		app.get("/posts/:id", async (req, res) => {
