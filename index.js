@@ -54,7 +54,8 @@ async function run() {
 
 		// >> users
 		app.post("/users", async (req, res) => {
-			const { name, image, email, password } = req.body; // remember to put "image" in the value
+			const { name, userName, image, email, isVerified, password } =
+				req.body; // remember to put "image" in the value
 
 			const existingUser = await usersCollection.findOne({
 				email: email,
@@ -72,7 +73,14 @@ async function run() {
 						.send({ message: "Password hashing error" });
 				}
 
-				const newUser = { name, image, email, password: hash };
+				const newUser = {
+					name,
+					userName,
+					image,
+					email,
+					isVerified,
+					password: hash,
+				};
 
 				const result = await usersCollection.insertOne(newUser);
 				res.send(result);
@@ -109,50 +117,84 @@ async function run() {
 		});
 
 		app.get("/users", async (req, res) => {
-			const result = await usersCollection.find().toArray();
+			let query = {};
+
+			if (req.query?.name) {
+				query.name = {
+					$regex: req.query.name,
+					$options: "i",
+				};
+			}
+			const result = await usersCollection.find(query).toArray();
 			res.send(result);
 		});
 
-		// >> post apis
-		app.post("/posts", async (req, res) => {
-			const post = req.body;
-			const result = await postsCollection.insertOne(post);
-			res.send(result);
-		});
+		// app.patch("/users/:userId", async (req, res) => {
+		// 	const { userId } = req.params;
+		// 	const { followedUserId } = req.body;
+		// 	console.log("userId", userId, "followedUserId", followedUserId);
 
-		app.get("/posts", async (req, res) => {
-			const result = await postsCollection.find().toArray();
-			res.send(result);
-		});
+		// 	if (!followedUserId || !Array.isArray(followedUserId)) {
+		// 		res.status(400).send({ message: "Invalid request body." });
+		// 		return;
+		// 	}
 
-		// app.patch("/posts/like/:id", async (req, res) => {
-		// 	// Increment the like count for a specific post
-		// 	const postId = req.params.id;
-		// 	const result = await postsCollection.updateOne(
-		// 		{ _id: new ObjectId(postId) },
-		// 		{ $inc: { likes: 1 } }
+		// 	await usersCollection.updateOne(
+		// 		{ _id: followedUserId },
+		// 		{ $addToSet: { follow: followedUserId } }
 		// 	);
-		// 	res.send(result);
+
+		// 	const updatedDocument = await usersCollection.findById(
+		// 		followedUserId
+		// 	);
+
+		// 	res.send(updatedDocument);
 		// });
 
-		app.patch("/posts/like/:postId", async (req, res) => {
+		// app.patch("/users/:userId", async (req, res) => {
+		// 	const { userId } = req.params;
+		// 	const { followedUserId } = req.body;
+		// 	console.log("userId", userId, "followedUserId", followedUserId);
+
+		// 	if (!followedUserId || !Array.isArray(followedUserId)) {
+		// 		res.status(400).send({ message: "Invalid request body." });
+		// 		return;
+		// 	}
+
+		// 	await usersCollection.updateOne(
+		// 		{ _id: userId },
+		// 		{ $addToSet: { follow: followedUserId } }
+		// 	);
+
+		// 	const updatedDocument = await usersCollection.findById(userId);
+
+		// 	res.send(updatedDocument);
+		// });
+
+		app.patch("/users/follow/:postId", verifyJWT, async (req, res) => {
 			try {
 				const postId = req.params.postId;
-				const userName = req.body.user.name; // Extract the user's displayName from the request body
+				const userDisplayName = req.body.user.displayName; // Extract the user's displayName from the request body
 
+				console.log(
+					"postId",
+					"userDisplayName",
+					postId,
+					userDisplayName
+				);
 				// Check if the user's displayName is already included in the likedBy array
-				const found = await postsCollection.findOne({
+				const found = await usersCollection.findOne({
 					_id: new ObjectId(postId),
-					likedBy: { $in: [userName] },
+					likedBy: { $in: [userDisplayName] },
 				});
 
 				if (!found) {
 					// The user has not liked the post before, so increment the likes count and push the user's displayName to the likedBy array
-					const result = await postsCollection.updateOne(
+					const result = await usersCollection.updateOne(
 						{ _id: new ObjectId(postId) },
 						{
 							$inc: { likes: 1 },
-							$push: { likedBy: userName },
+							$push: { likedBy: userDisplayName },
 						}
 					);
 					res.send(result);
@@ -164,9 +206,118 @@ async function run() {
 				}
 			} catch (error) {
 				console.error("Error incrementing likes:", error);
-				res.status(500).json({
-					message: "Internal server error",
+				res.status(500).json({ message: "Internal server error" });
+			}
+		});
+
+		// app.patch("/users/:userId/follow", async (req, res) => {
+		// 	try {
+		// 		const { userId } = req.params;
+		// 		const { followedUserId } = req.body;
+
+		// 		// Check if the followed user's id already exists in the matched user's follow array.
+		// 		const matchedUser = await usersCollection.findOne({
+		// 			_id: userId,
+		// 		});
+		// 		if (!matchedUser) {
+		// 			return res.status(404).json({ message: "User not found" });
+		// 		}
+
+		// 		if (matchedUser.follow.includes(followedUserId)) {
+		// 			return res.json({ message: "User already followed" });
+		// 		}
+
+		// 		// Add the followed user's id to the matched user's follow array.
+		// 		matchedUser.follow.push(followedUserId);
+
+		// 		// Update the matched user document in the database.
+		// 		await usersCollection.updateOne(
+		// 			{ _id: userId },
+		// 			{ $set: { follow: matchedUser.follow } }
+		// 		);
+
+		// 		return res.json({ message: "User followed successfully" });
+		// 	} catch (error) {
+		// 		return res.status(500).json({
+		// 			message: "Failed to follow user",
+		// 			error: error.toString(),
+		// 		});
+		// 	}
+		// });
+
+		// >> post apis
+		postsCollection.createIndex({
+			createdAt: 1,
+			expireAfterSeconds: 2592000,
+		});
+
+		const deleteAdminExpiredPosts = async () => {
+			const thirtyDaysAgo = new Date(
+				Date.now() - 30 * 24 * 60 * 60 * 1000
+			);
+			const expiredPosts = await postsCollection
+				.find({
+					createdAt: {
+						$lt: thirtyDaysAgo,
+					},
+				})
+				.toArray();
+
+			for (const post of expiredPosts) {
+				await postsCollection.deleteOne({ _id: post._id });
+			}
+		};
+
+		setInterval(deleteAdminExpiredPosts, 86400000);
+
+		app.post("/posts", async (req, res) => {
+			const post = req.body;
+			post.createdAt = new Date();
+			const result = await postsCollection.insertOne(post);
+			res.send(result);
+		});
+
+		app.get("/posts", async (req, res) => {
+			const result = await postsCollection.find().toArray();
+			res.send(result);
+		});
+
+		app.patch("/posts/like/:postId", verifyJWT, async (req, res) => {
+			try {
+				const postId = req.params.postId;
+				const userDisplayName = req.body.user.displayName; // Extract the user's displayName from the request body
+
+				console.log(
+					"postId",
+					"userDisplayName",
+					postId,
+					userDisplayName
+				);
+				// Check if the user's displayName is already included in the likedBy array
+				const found = await postsCollection.findOne({
+					_id: new ObjectId(postId),
+					likedBy: { $in: [userDisplayName] },
 				});
+
+				if (!found) {
+					// The user has not liked the post before, so increment the likes count and push the user's displayName to the likedBy array
+					const result = await postsCollection.updateOne(
+						{ _id: new ObjectId(postId) },
+						{
+							$inc: { likes: 1 },
+							$push: { likedBy: userDisplayName },
+						}
+					);
+					res.send(result);
+				} else {
+					// The user has already liked the post, so do nothing
+					res.status(400).json({
+						message: "You have already liked this post",
+					});
+				}
+			} catch (error) {
+				console.error("Error incrementing likes:", error);
+				res.status(500).json({ message: "Internal server error" });
 			}
 		});
 
