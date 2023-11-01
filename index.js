@@ -344,19 +344,28 @@ async function run() {
 			if (!followDataDocument) {
 				await followCollection.insertOne(followData);
 			} else {
-				// Add the new ID to the followingIds array.
-				followDataDocument.followingIds.push(
-					followData.followingIds[0]
-				);
+				// Check if the new ID already exists in the followingIds array.
+				const alreadyFollowing =
+					followDataDocument.followingIds.includes(
+						followData.followingIds[0]
+					);
 
-				// Update the follow data document in the database.
-				await followCollection.replaceOne(
-					{ followerId: userId },
-					followDataDocument
-				);
+				// If the new ID does not already exist in the followingIds array, then add it.
+				if (!alreadyFollowing) {
+					followDataDocument.followingIds.push(
+						followData.followingIds[0]
+					);
+
+					// Update the follow data document in the database.
+					await followCollection.replaceOne(
+						{ followerId: userId },
+						followDataDocument
+					);
+				}
+
+				// Return a success message to the client.
+				res.send({ success: true });
 			}
-
-			res.send({ success: true });
 		});
 
 		await client.db("admin").command({ ping: 1 });
