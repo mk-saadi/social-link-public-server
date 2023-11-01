@@ -51,6 +51,7 @@ async function run() {
 
 		const usersCollection = client.db("social-link").collection("users");
 		const postsCollection = client.db("social-link").collection("posts");
+		const followCollection = client.db("social-link").collection("follow");
 
 		// >> users
 		app.post("/users", async (req, res) => {
@@ -326,6 +327,36 @@ async function run() {
 			const query = { _id: new ObjectId(id) };
 			const result = await postsCollection.findOne(query);
 			res.send(result);
+		});
+
+		/* ------------------------------ follow -------------------------------- */
+
+		app.post("/follow", async (req, res) => {
+			const followData = req.body;
+			const userId = followData.followerId;
+
+			// Check if the userId matches the followerId in the database.
+			const followDataDocument = await followCollection.findOne({
+				followerId: userId,
+			});
+
+			// If the follow data document does not exist, then create a new one.
+			if (!followDataDocument) {
+				await followCollection.insertOne(followData);
+			} else {
+				// Add the new ID to the followingIds array.
+				followDataDocument.followingIds.push(
+					followData.followingIds[0]
+				);
+
+				// Update the follow data document in the database.
+				await followCollection.replaceOne(
+					{ followerId: userId },
+					followDataDocument
+				);
+			}
+
+			res.send({ success: true });
 		});
 
 		await client.db("admin").command({ ping: 1 });
