@@ -53,7 +53,7 @@ async function run() {
 		const postsCollection = client.db("social-link").collection("posts");
 		const followCollection = client.db("social-link").collection("follow");
 
-		// >> users
+		/* ------------------------------ users -------------------------------- */
 		app.post("/users", async (req, res) => {
 			const { name, userName, image, email, isVerified, password } =
 				req.body; // remember to put "image" in the value
@@ -130,123 +130,7 @@ async function run() {
 			res.send(result);
 		});
 
-		// app.patch("/users/:userId", async (req, res) => {
-		// 	const { userId } = req.params;
-		// 	const { followedUserId } = req.body;
-		// 	console.log("userId", userId, "followedUserId", followedUserId);
-
-		// 	if (!followedUserId || !Array.isArray(followedUserId)) {
-		// 		res.status(400).send({ message: "Invalid request body." });
-		// 		return;
-		// 	}
-
-		// 	await usersCollection.updateOne(
-		// 		{ _id: followedUserId },
-		// 		{ $addToSet: { follow: followedUserId } }
-		// 	);
-
-		// 	const updatedDocument = await usersCollection.findById(
-		// 		followedUserId
-		// 	);
-
-		// 	res.send(updatedDocument);
-		// });
-
-		// app.patch("/users/:userId", async (req, res) => {
-		// 	const { userId } = req.params;
-		// 	const { followedUserId } = req.body;
-		// 	console.log("userId", userId, "followedUserId", followedUserId);
-
-		// 	if (!followedUserId || !Array.isArray(followedUserId)) {
-		// 		res.status(400).send({ message: "Invalid request body." });
-		// 		return;
-		// 	}
-
-		// 	await usersCollection.updateOne(
-		// 		{ _id: userId },
-		// 		{ $addToSet: { follow: followedUserId } }
-		// 	);
-
-		// 	const updatedDocument = await usersCollection.findById(userId);
-
-		// 	res.send(updatedDocument);
-		// });
-
-		app.patch("/users/follow/:postId", verifyJWT, async (req, res) => {
-			try {
-				const postId = req.params.postId;
-				const userDisplayName = req.body.user.displayName; // Extract the user's displayName from the request body
-
-				console.log(
-					"postId",
-					"userDisplayName",
-					postId,
-					userDisplayName
-				);
-				// Check if the user's displayName is already included in the likedBy array
-				const found = await usersCollection.findOne({
-					_id: new ObjectId(postId),
-					likedBy: { $in: [userDisplayName] },
-				});
-
-				if (!found) {
-					// The user has not liked the post before, so increment the likes count and push the user's displayName to the likedBy array
-					const result = await usersCollection.updateOne(
-						{ _id: new ObjectId(postId) },
-						{
-							$inc: { likes: 1 },
-							$push: { likedBy: userDisplayName },
-						}
-					);
-					res.send(result);
-				} else {
-					// The user has already liked the post, so do nothing
-					res.status(400).json({
-						message: "You have already liked this post",
-					});
-				}
-			} catch (error) {
-				console.error("Error incrementing likes:", error);
-				res.status(500).json({ message: "Internal server error" });
-			}
-		});
-
-		// app.patch("/users/:userId/follow", async (req, res) => {
-		// 	try {
-		// 		const { userId } = req.params;
-		// 		const { followedUserId } = req.body;
-
-		// 		// Check if the followed user's id already exists in the matched user's follow array.
-		// 		const matchedUser = await usersCollection.findOne({
-		// 			_id: userId,
-		// 		});
-		// 		if (!matchedUser) {
-		// 			return res.status(404).json({ message: "User not found" });
-		// 		}
-
-		// 		if (matchedUser.follow.includes(followedUserId)) {
-		// 			return res.json({ message: "User already followed" });
-		// 		}
-
-		// 		// Add the followed user's id to the matched user's follow array.
-		// 		matchedUser.follow.push(followedUserId);
-
-		// 		// Update the matched user document in the database.
-		// 		await usersCollection.updateOne(
-		// 			{ _id: userId },
-		// 			{ $set: { follow: matchedUser.follow } }
-		// 		);
-
-		// 		return res.json({ message: "User followed successfully" });
-		// 	} catch (error) {
-		// 		return res.status(500).json({
-		// 			message: "Failed to follow user",
-		// 			error: error.toString(),
-		// 		});
-		// 	}
-		// });
-
-		// >> post apis
+		/* ------------------------------ post -------------------------------- */
 		postsCollection.createIndex({
 			createdAt: 1,
 			expireAfterSeconds: 2592000,
@@ -330,7 +214,6 @@ async function run() {
 		});
 
 		/* ------------------------------ follow -------------------------------- */
-
 		app.post("/follow", async (req, res) => {
 			const followData = req.body;
 			const userId = followData.followerId;
