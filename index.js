@@ -52,6 +52,9 @@ async function run() {
 		const usersCollection = client.db("social-link").collection("users");
 		const postsCollection = client.db("social-link").collection("posts");
 		const followCollection = client.db("social-link").collection("follow");
+		const commentsCollection = client
+			.db("social-link")
+			.collection("comments");
 
 		/* ------------------------------ users -------------------------------- */
 		app.post("/users", async (req, res) => {
@@ -129,6 +132,12 @@ async function run() {
 			const result = await usersCollection.find(query).toArray();
 			res.send(result);
 		});
+		app.get("/users/:userName", async (req, res) => {
+			const id = req.params.id;
+			const query = { userName: new ObjectId(id) };
+			const result = await usersCollection.findOne(query);
+			res.send(result);
+		});
 
 		/* ------------------------------ post -------------------------------- */
 		postsCollection.createIndex({
@@ -167,43 +176,18 @@ async function run() {
 			res.send(result);
 		});
 
-		app.patch("/posts/like/:postId", verifyJWT, async (req, res) => {
-			try {
-				const postId = req.params.postId;
-				const userDisplayName = req.body.user.displayName; // Extract the user's displayName from the request body
-
-				console.log(
-					"postId",
-					"userDisplayName",
-					postId,
-					userDisplayName
-				);
-				// Check if the user's displayName is already included in the likedBy array
-				const found = await postsCollection.findOne({
-					_id: new ObjectId(postId),
-					likedBy: { $in: [userDisplayName] },
-				});
-
-				if (!found) {
-					// The user has not liked the post before, so increment the likes count and push the user's displayName to the likedBy array
-					const result = await postsCollection.updateOne(
-						{ _id: new ObjectId(postId) },
-						{
-							$inc: { likes: 1 },
-							$push: { likedBy: userDisplayName },
-						}
-					);
-					res.send(result);
-				} else {
-					// The user has already liked the post, so do nothing
-					res.status(400).json({
-						message: "You have already liked this post",
-					});
-				}
-			} catch (error) {
-				console.error("Error incrementing likes:", error);
-				res.status(500).json({ message: "Internal server error" });
-			}
+		app.put("/posts/like", async (req, res) => {
+			const { postId } = req.body;
+			console.log(
+				"🚀 ~ file: index.js:142 ~ app.patch ~ postId:",
+				postId
+			);
+			// console.log("🚀 ~ file: index.js:142 ~ app.put ~ postId:", postId)
+			const result = await postsCollection.updateOne(
+				{ _id: new ObjectId(postId) },
+				{ $inc: { likes: 1 } }
+			);
+			res.send(result);
 		});
 
 		app.get("/posts/:id", async (req, res) => {
@@ -249,6 +233,48 @@ async function run() {
 				// Return a success message to the client.
 				res.send({ success: true });
 			}
+		});
+
+		app.get("/follow", async (req, res) => {
+			const result = await followCollection.find().toArray();
+			res.send(result);
+		});
+
+		/* ------------------------------ comment -------------------------------- */
+		commentsCollection.createIndex({
+			createdAt: 1,
+			expireAfterSeconds: 2592000,
+		});
+
+		const deleteComment = async () => {
+			const thirtyDaysAgo = new Date(
+				Date.now() - 30 * 24 * 60 * 60 * 1000
+			);
+			const expiredPosts = await commentsCollection
+				.find({
+					createdAt: {
+						$lt: thirtyDaysAgo,
+					},
+				})
+				.toArray();
+
+			for (const post of expiredPosts) {
+				await commentsCollection.deleteOne({ _id: post._id });
+			}
+		};
+
+		setInterval(deleteComment, 86400000);
+
+		app.post("/comments", async (req, res) => {
+			const post = req.body;
+			post.createdAt = new Date();
+			const result = await commentsCollection.insertOne(post);
+			res.send(result);
+		});
+
+		app.get("/comments", async (req, res) => {
+			const result = await commentsCollection.find().toArray();
+			res.send(result);
 		});
 
 		await client.db("admin").command({ ping: 1 });
