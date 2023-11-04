@@ -52,6 +52,7 @@ async function run() {
 		const usersCollection = client.db("social-link").collection("users");
 		const postsCollection = client.db("social-link").collection("posts");
 		const followCollection = client.db("social-link").collection("follow");
+		const storyCollection = client.db("social-link").collection("story");
 		const commentsCollection = client
 			.db("social-link")
 			.collection("comments");
@@ -129,13 +130,26 @@ async function run() {
 					$options: "i",
 				};
 			}
+
+			if (req.query?.userName) {
+				query.userName = {
+					$regex: req.query.userName,
+					$options: "i",
+				};
+			}
+
 			const result = await usersCollection.find(query).toArray();
 			res.send(result);
 		});
+
 		app.get("/users/:userName", async (req, res) => {
-			const id = req.params.id;
-			const query = { userName: new ObjectId(id) };
+			const username = req.params.userName; // Get the username parameter
+			console.log(username);
+
+			const query = { userName: username }; // Search based on the username
+
 			const result = await usersCollection.findOne(query);
+
 			res.send(result);
 		});
 
@@ -173,6 +187,15 @@ async function run() {
 
 		app.get("/posts", async (req, res) => {
 			const result = await postsCollection.find().toArray();
+			res.send(result);
+		});
+
+		app.get("/posts/:userName", async (req, res) => {
+			const userName = req.params.userName;
+
+			const query = { userName: { $in: [userName] } };
+
+			const result = await postsCollection.find(query).toArray();
 			res.send(result);
 		});
 
@@ -274,6 +297,48 @@ async function run() {
 
 		app.get("/comments", async (req, res) => {
 			const result = await commentsCollection.find().toArray();
+			res.send(result);
+		});
+
+		/* ------------------------------ story -------------------------------- */
+		storyCollection.createIndex({
+			createdAt: 1,
+			expireAfterSeconds: 86400000,
+		});
+
+		const deleteExpiredStory = async () => {
+			const oneDaysAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+			const expiredStories = await storyCollection
+				.find({
+					createdAt: {
+						$lt: oneDaysAgo,
+					},
+				})
+				.toArray();
+
+			for (const story of expiredStories) {
+				await storyCollection.deleteOne({ _id: story._id });
+			}
+		};
+
+		setInterval(deleteExpiredStory, 3600);
+
+		app.post("/story", async (req, res) => {
+			const story = req.body;
+			story.createdAt = new Date();
+			const result = await storyCollection.insertOne(story);
+			res.send(result);
+		});
+
+		app.get("/story", async (req, res) => {
+			const result = await storyCollection.find().toArray();
+			res.send(result);
+		});
+
+		app.get("/story/:id", async (req, res) => {
+			const id = req.params.id;
+			const query = { _id: new ObjectId(id) };
+			const result = await storyCollection.findOne(query);
 			res.send(result);
 		});
 
