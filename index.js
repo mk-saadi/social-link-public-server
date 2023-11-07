@@ -85,6 +85,7 @@ async function run() {
 					email,
 					isVerified,
 					password: hash,
+					createdAt: new Date(),
 				};
 
 				const result = await usersCollection.insertOne(newUser);
@@ -201,10 +202,7 @@ async function run() {
 
 		app.put("/posts/like", async (req, res) => {
 			const { postId } = req.body;
-			console.log(
-				"🚀 ~ file: index.js:142 ~ app.patch ~ postId:",
-				postId
-			);
+
 			// console.log("🚀 ~ file: index.js:142 ~ app.put ~ postId:", postId)
 			const result = await postsCollection.updateOne(
 				{ _id: new ObjectId(postId) },
