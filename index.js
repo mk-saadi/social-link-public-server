@@ -51,8 +51,14 @@ async function run() {
 
 		const usersCollection = client.db("social-link").collection("users");
 		const postsCollection = client.db("social-link").collection("posts");
+		const saveCollection = client.db("social-link").collection("savePost");
 		const followCollection = client.db("social-link").collection("follow");
 		const storyCollection = client.db("social-link").collection("story");
+		const reportCollection = client.db("social-link").collection("report");
+		const blockCollection = client.db("social-link").collection("block");
+		const feedbackCollection = client
+			.db("social-link")
+			.collection("feedback");
 		const commentsCollection = client
 			.db("social-link")
 			.collection("comments");
@@ -154,6 +160,13 @@ async function run() {
 			res.send(result);
 		});
 
+		app.delete("/users/:id", async (req, res) => {
+			const id = req.params.id;
+			const query = { _id: new ObjectId(id) };
+			const result = await usersCollection.deleteOne(query);
+			res.send(result);
+		});
+
 		/* ------------------------------ post -------------------------------- */
 		postsCollection.createIndex({
 			createdAt: 1,
@@ -191,14 +204,14 @@ async function run() {
 			res.send(result);
 		});
 
-		app.get("/posts/:userName", async (req, res) => {
-			const userName = req.params.userName;
+		// app.get("/posts/:userName", async (req, res) => {
+		// 	const userName = req.params.userName;
 
-			const query = { userName: { $in: [userName] } };
+		// 	const query = { userName: { $in: [userName] } };
 
-			const result = await postsCollection.find(query).toArray();
-			res.send(result);
-		});
+		// 	const result = await postsCollection.find(query).toArray();
+		// 	res.send(result);
+		// });
 
 		app.put("/posts/like", async (req, res) => {
 			const { postId } = req.body;
@@ -211,10 +224,49 @@ async function run() {
 			res.send(result);
 		});
 
+		app.put("/posts/:id", async (req, res) => {
+			const id = req.params.id;
+			const filter = { _id: new ObjectId(id) };
+			const options = { upsert: true };
+
+			const updatedPost = req.body;
+			const posts = {
+				$set: {
+					image: updatedPost.image,
+					name: updatedPost.name, // it is the content of the post
+				},
+			};
+			const result = await postsCollection.updateOne(
+				filter,
+				posts,
+				options
+			);
+			res.send(result);
+		});
+
 		app.get("/posts/:id", async (req, res) => {
 			const id = req.params.id;
 			const query = { _id: new ObjectId(id) };
 			const result = await postsCollection.findOne(query);
+			res.send(result);
+		});
+
+		app.delete("/posts/:id", async (req, res) => {
+			const id = req.params.id;
+			const query = { _id: new ObjectId(id) };
+			const result = await postsCollection.deleteOne(query);
+			res.send(result);
+		});
+
+		/* ------------------------------ save post -------------------------------- */
+		app.post("/savePost", async (req, res) => {
+			const post = req.body;
+			const result = await saveCollection.insertOne(post);
+			res.send(result);
+		});
+
+		app.get("/savePost", async (req, res) => {
+			const result = await saveCollection.find().toArray();
 			res.send(result);
 		});
 
@@ -259,6 +311,34 @@ async function run() {
 		app.get("/follow", async (req, res) => {
 			const result = await followCollection.find().toArray();
 			res.send(result);
+		});
+
+		app.delete("/follow", async (req, res) => {
+			const { followerId, unfollowId } = req.body;
+			console.log("followerId, unfollowId", followerId, unfollowId);
+			// Find the follower document
+			const followDataDocument = await followCollection.findOne({
+				followerId,
+			});
+
+			// Check if the follower document exists
+			if (!followDataDocument) {
+				return res.status(404).send({ message: "Follower not found" });
+			}
+
+			// Remove the unfollowId from the followingIds array
+			const updatedFollowingIds = followDataDocument.followingIds.filter(
+				(id) => id !== unfollowId
+			);
+
+			// Update the follower document with the updated followingIds array
+			await followCollection.replaceOne(
+				{ followerId },
+				{ ...followDataDocument, followingIds: updatedFollowingIds }
+			);
+
+			// Return a success message to the client
+			res.send({ success: true });
 		});
 
 		/* ------------------------------ comment -------------------------------- */
@@ -337,6 +417,74 @@ async function run() {
 			const id = req.params.id;
 			const query = { _id: new ObjectId(id) };
 			const result = await storyCollection.findOne(query);
+			res.send(result);
+		});
+
+		/* ------------------------------ report to admin -------------------------------- */
+		app.post("/report", async (req, res) => {
+			const report = req.body;
+			report.createdAt = new Date();
+			const result = await reportCollection.insertOne(report);
+			res.send(result);
+		});
+
+		app.get("/report", async (req, res) => {
+			const result = await reportCollection.find().toArray();
+			res.send(result);
+		});
+
+		/* ------------------------------ feedback from admin -------------------------------- */
+		app.post("/feedback", async (req, res) => {
+			const report = req.body;
+			report.createdAt = new Date();
+			const result = await feedbackCollection.insertOne(report);
+			res.send(result);
+		});
+
+		app.get("/feedback", async (req, res) => {
+			const result = await feedbackCollection.find().toArray();
+			res.send(result);
+		});
+
+		/* ------------------------------ block -------------------------------- */
+		app.post("/block", async (req, res) => {
+			const blockData = req.body;
+			const userId = blockData.blockerId;
+
+			// Check if the userId matches the blockerId in the database.
+			const blockDataDocument = await blockCollection.findOne({
+				blockerId: userId,
+			});
+
+			// If the block data document does not exist, then create a new one.
+			if (!blockDataDocument) {
+				await blockCollection.insertOne(blockData);
+			} else {
+				// Check if the new ID already exists in the blockingIds array.
+				const alreadyBlocking = blockDataDocument.blockingIds.includes(
+					blockData.blockingIds[0]
+				);
+
+				// If the new ID does not already exist in the blockingIds array, then add it.
+				if (!alreadyBlocking) {
+					blockDataDocument.blockingIds.push(
+						blockData.blockingIds[0]
+					);
+
+					// Update the block data document in the database.
+					await blockCollection.replaceOne(
+						{ blockerId: userId },
+						blockDataDocument
+					);
+				}
+
+				// Return a success message to the client.
+				res.send({ success: true });
+			}
+		});
+
+		app.get("/block", async (req, res) => {
+			const result = await blockCollection.find().toArray();
 			res.send(result);
 		});
 
