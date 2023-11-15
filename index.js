@@ -381,7 +381,7 @@ async function run() {
 		/* ------------------------------ story -------------------------------- */
 		storyCollection.createIndex({
 			createdAt: 1,
-			expireAfterSeconds: 86400000,
+			expireAfterSeconds: 86400,
 		});
 
 		const deleteExpiredStory = async () => {
@@ -399,7 +399,7 @@ async function run() {
 			}
 		};
 
-		setInterval(deleteExpiredStory, 3600);
+		setInterval(deleteExpiredStory, 60000);
 
 		app.post("/story", async (req, res) => {
 			const story = req.body;
