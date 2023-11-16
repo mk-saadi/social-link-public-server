@@ -56,6 +56,7 @@ async function run() {
 		const storyCollection = client.db("social-link").collection("story");
 		const reportCollection = client.db("social-link").collection("report");
 		const blockCollection = client.db("social-link").collection("block");
+		const aboutCollection = client.db("social-link").collection("about");
 		const feedbackCollection = client
 			.db("social-link")
 			.collection("feedback");
@@ -485,6 +486,19 @@ async function run() {
 
 		app.get("/block", async (req, res) => {
 			const result = await blockCollection.find().toArray();
+			res.send(result);
+		});
+
+		/* ------------------------------ about -------------------------------- */
+		app.post("/about", async (req, res) => {
+			const report = req.body;
+			report.createdAt = new Date();
+			const result = await aboutCollection.insertOne(report);
+			res.send(result);
+		});
+
+		app.get("/about", async (req, res) => {
+			const result = await aboutCollection.find().toArray();
 			res.send(result);
 		});
 
