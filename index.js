@@ -57,6 +57,8 @@ async function run() {
 		const reportCollection = client.db("social-link").collection("report");
 		const blockCollection = client.db("social-link").collection("block");
 		const aboutCollection = client.db("social-link").collection("about");
+		const blogsCollection = client.db("social-link").collection("blogs");
+		const hideCollection = client.db("social-link").collection("hide");
 		const feedbackCollection = client
 			.db("social-link")
 			.collection("feedback");
@@ -151,10 +153,10 @@ async function run() {
 		});
 
 		app.get("/users/:userName", async (req, res) => {
-			const username = req.params.userName; // Get the username parameter
+			const username = req.params.userName;
 			console.log(username);
 
-			const query = { userName: username }; // Search based on the username
+			const query = { userName: username };
 
 			const result = await usersCollection.findOne(query);
 
@@ -214,15 +216,52 @@ async function run() {
 		// 	res.send(result);
 		// });
 
-		app.put("/posts/like", async (req, res) => {
-			const { postId } = req.body;
+		// app.put("/posts/like", async (req, res) => {
+		// 	const { postId } = req.body;
 
-			// console.log("🚀 ~ file: index.js:142 ~ app.put ~ postId:", postId)
-			const result = await postsCollection.updateOne(
-				{ _id: new ObjectId(postId) },
-				{ $inc: { likes: 1 } }
-			);
-			res.send(result);
+		// 	// console.log("🚀 ~ file: index.js:142 ~ app.put ~ postId:", postId)
+		// 	const result = await postsCollection.updateOne(
+		// 		{ _id: new ObjectId(postId) },
+		// 		{ $inc: { likes: 1 } }
+		// 	);
+		// 	res.send(result);
+		// });
+
+		app.patch("/posts/like/:postId", async (req, res) => {
+			try {
+				const postId = req.params.postId;
+				const userName = req.body.user.userName; // Extract the user's displayName from the request body
+
+				console.log("postId", "userName", postId, userName);
+
+				// Check if the user's displayName is already included in the likedBy array
+				const found = await postsCollection.findOne({
+					_id: new ObjectId(postId),
+					likedBy: { $in: [userName] },
+				});
+
+				if (!found) {
+					// The user has not liked the post before, so increment the likes count and push the user's displayName to the likedBy array
+					const result = await postsCollection.updateOne(
+						{ _id: new ObjectId(postId) },
+						{
+							$inc: { likes: 1 },
+							$push: { likedBy: userName },
+						}
+					);
+					res.send(result);
+				} else {
+					// The user has already liked the post, so do nothing
+					res.status(400).json({
+						message: "You have already liked this post",
+					});
+				}
+			} catch (error) {
+				console.error("Error incrementing likes:", error);
+				res.status(500).json({
+					message: "Internal server error",
+				});
+			}
 		});
 
 		app.put("/posts/:id", async (req, res) => {
@@ -501,6 +540,150 @@ async function run() {
 			const result = await aboutCollection.find().toArray();
 			res.send(result);
 		});
+
+		app.put("/about/:id", async (req, res) => {
+			const id = req.params.id;
+			const filter = { _id: new ObjectId(id) };
+			const options = { upsert: true };
+
+			const updateAbout = req.body;
+			const aboutEdit = {
+				$set: {
+					bio: updateAbout.bio,
+					address: updateAbout.address,
+					birthday: updateAbout.birthday,
+					facebook: updateAbout.facebook,
+					github: updateAbout.github,
+					twitter: updateAbout.twitter,
+					linked: updateAbout.linked,
+					website: updateAbout.website,
+					discord: updateAbout.discord,
+					relation: updateAbout.relation,
+					quote: updateAbout.quote,
+				},
+			};
+			const result = await aboutCollection.updateOne(
+				filter,
+				aboutEdit,
+				options
+			);
+			res.send(result);
+		});
+
+		/* ------------------------------ blogs -------------------------------- */
+		app.post("/blogs", async (req, res) => {
+			const report = req.body;
+			report.createdAt = new Date();
+			const result = await blogsCollection.insertOne(report);
+			res.send(result);
+		});
+
+		app.get("/blogs", async (req, res) => {
+			let query = {};
+
+			if (req.params.category) {
+				if (
+					req.params.category == "Technology" ||
+					req.params.category == "Lifestyle" ||
+					req.params.category == "Entertainment" ||
+					req.params.category == "Personal Development" ||
+					req.params.category == "Business and Finance" ||
+					req.params.category == "Science and Education" ||
+					req.params.category == "Books and Literature" ||
+					req.params.category == "Social Issues" ||
+					req.params.category == "Parenting and Family" ||
+					req.params.category == "Sports" ||
+					req.params.category == "Photography and Art" ||
+					req.params.category == "Science Fiction and Fantasy" ||
+					req.params.category == "Humor and Satire" ||
+					req.params.category == "DIY and Crafts" ||
+					req.params.category == "Education and Learning" ||
+					req.params.category == "History and Culture" ||
+					req.params.category == "News and Politics" ||
+					req.params.category == "Tech Reviews"
+				) {
+					query.category = req.params.category;
+				} else {
+					query.category = {
+						$regex: req.params.category,
+						$options: "i",
+					};
+				}
+			}
+
+			if (req.query?.category) {
+				query.category = {
+					$regex: req.query.category,
+					$options: "i",
+				};
+			}
+
+			if (req.query?.title) {
+				query.title = {
+					$regex: req.query.title,
+					$options: "i",
+				};
+			}
+
+			const result = await blogsCollection.find(query).toArray();
+			res.send(result);
+		});
+
+		app.get("/blogs/:title", async (req, res) => {
+			const title = req.params.title;
+			const query = { title: title };
+			const result = await blogsCollection.findOne(query);
+			res.send(result);
+		});
+
+		/* ------------------------------ hide -------------------------------- */
+		// app.post("/hide", async (req, res) => {
+		// 	const report = req.body;
+		// 	report.createdAt = new Date();
+		// 	const result = await hideCollection.insertOne(report);
+		// 	res.send(result);
+		// });
+
+		app.post("/hide", async (req, res) => {
+			const hideData = req.body;
+			const userName = hideData.hiderUser;
+
+			// Check if the userName matches the hiderUser in the database. the one who is hiding other users
+			const hideDataDocument = await hideCollection.findOne({
+				hiderUser: userName,
+			});
+
+			// If the hide data document does not exist, then create a new one.
+			if (!hideDataDocument) {
+				await hideCollection.insertOne(hideData);
+			} else {
+				// Check if the new user's name already exists in the hidingUsers array.
+				const alreadyHiding = hideDataDocument.hidingUsers.includes(
+					hideData.hidingUsers[0]
+				);
+
+				// If the new user's name does not already exist in the hidingUsers array, then add it.
+				if (!alreadyHiding) {
+					hideDataDocument.hidingUsers.push(hideData.hidingUsers[0]);
+
+					// Update the hide data document in the database.
+					await hideCollection.replaceOne(
+						{ hiderUser: userName },
+						hideDataDocument
+					);
+				}
+
+				// Return a success message to the client.
+				res.send({ success: true });
+			}
+		});
+
+		app.get("/hide", async (req, res) => {
+			const result = await hideCollection.find().toArray();
+			res.send(result);
+		});
+
+		app.p;
 
 		await client.db("admin").command({ ping: 1 });
 		console.log(
