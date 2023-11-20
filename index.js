@@ -489,36 +489,32 @@ async function run() {
 		/* ------------------------------ block -------------------------------- */
 		app.post("/block", async (req, res) => {
 			const blockData = req.body;
-			const userId = blockData.blockerId;
+			const userName = blockData.blockerName;
 
-			// Check if the userId matches the blockerId in the database.
+			console.log(blockData);
+
 			const blockDataDocument = await blockCollection.findOne({
-				blockerId: userId,
+				blockerName: userName,
 			});
 
-			// If the block data document does not exist, then create a new one.
 			if (!blockDataDocument) {
 				await blockCollection.insertOne(blockData);
 			} else {
-				// Check if the new ID already exists in the blockingIds array.
-				const alreadyBlocking = blockDataDocument.blockingIds.includes(
-					blockData.blockingIds[0]
+				const alreadyBlocking = blockDataDocument.blockedNames.includes(
+					blockData.blockedNames[0]
 				);
 
-				// If the new ID does not already exist in the blockingIds array, then add it.
 				if (!alreadyBlocking) {
-					blockDataDocument.blockingIds.push(
-						blockData.blockingIds[0]
+					blockDataDocument.blockedNames.push(
+						blockData.blockedNames[0]
 					);
 
-					// Update the block data document in the database.
 					await blockCollection.replaceOne(
-						{ blockerId: userId },
+						{ blockerName: userName },
 						blockDataDocument
 					);
 				}
 
-				// Return a success message to the client.
 				res.send({ success: true });
 			}
 		});
@@ -636,6 +632,40 @@ async function run() {
 			res.send(result);
 		});
 
+		app.patch("/blogs/like/:postId", async (req, res) => {
+			try {
+				const postId = req.params.postId;
+				const userName = req.body.user.userName;
+
+				// console.log("postId", "userName", postId, userName);
+
+				const found = await blogsCollection.findOne({
+					_id: new ObjectId(postId),
+					likedBy: { $in: [userName] },
+				});
+
+				if (!found) {
+					const result = await blogsCollection.updateOne(
+						{ _id: new ObjectId(postId) },
+						{
+							$inc: { likes: 1 },
+							$push: { likedBy: userName },
+						}
+					);
+					res.send(result);
+				} else {
+					res.status(400).json({
+						message: "You have already liked this post",
+					});
+				}
+			} catch (error) {
+				console.error("Error incrementing likes:", error);
+				res.status(500).json({
+					message: "Internal server error",
+				});
+			}
+		});
+
 		/* ------------------------------ hide -------------------------------- */
 		// app.post("/hide", async (req, res) => {
 		// 	const report = req.body;
@@ -683,7 +713,36 @@ async function run() {
 			res.send(result);
 		});
 
-		app.p;
+		app.delete("/hide", async (req, res) => {
+			const { hiderUser, unHideUser } = req.body;
+			console.log("hiderUser, unHideUser", hiderUser, unHideUser);
+			// Find the user document
+			const hideDataDocument = await hideCollection.findOne({
+				hiderUser,
+			});
+
+			// Check if the user document exists
+			if (!hideDataDocument) {
+				return res.status(404).send({ message: "User not found" });
+			}
+
+			// Remove the unHideUser from the hidingUsers array
+			const updatedHidingUsers = hideDataDocument.hidingUsers.filter(
+				(us) => us !== unHideUser
+			);
+
+			// Update the user document with the updated hidingUsers array
+			await hideCollection.replaceOne(
+				{ hiderUser },
+				{
+					...hideDataDocument,
+					hidingUsers: updatedHidingUsers,
+				}
+			);
+
+			// Return a success message to the client
+			res.send({ success: true });
+		});
 
 		await client.db("admin").command({ ping: 1 });
 		console.log(
