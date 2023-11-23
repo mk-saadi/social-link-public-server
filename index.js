@@ -34,8 +34,7 @@ const verifyJWT = (req, res, next) => {
 };
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const uri =
-	"mongodb+srv://social-link:W6VVY3l6WYQYFvQh@cluster0.mrt0xqs.mongodb.net/?retryWrites=true&w=majority";
+const uri = `${process.env.Mongo_URI}`;
 
 const client = new MongoClient(uri, {
 	serverApi: {
